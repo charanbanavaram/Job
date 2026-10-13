@@ -1,0 +1,99 @@
+{
+  "candidate": {
+    "name": "Banavaram Charan",
+    "email": "banavaramcharan@gmail.com",
+    "phone": "+918985897700",
+    "location": "Bengaluru, Karnataka, India",
+    "linkedin": "https://linkedin.com/in/banavaram-charan-733ab4222",
+    "experience_level": "0-2 years (Junior / Entry-Level / Early Career / Fresher / Apprentice)",
+    "education": {
+      "degree": "Bachelor of Technology (B.Tech), Computer Science & Engineering",
+      "institution": "Christ (Deemed to be University), Bengaluru",
+      "graduation_year": 2025,
+      "cgpa": "8.23 / 10"
+    },
+    "current_role": "Apprentice – Financial Liabilities Operations (WRB), Standard Chartered Bank GBS (Oct 2025 – Present)",
+    "target_roles": [
+      "Full Stack Developer",
+      "Full Stack Engineer",
+      "Backend Developer",
+      "Backend Engineer",
+      "Software Engineer",
+      "Software Development Engineer",
+      "SDE 1",
+      "Associate Software Engineer",
+      "Junior Software Engineer",
+      "Cloud / Ops Engineer",
+      "DevOps Engineer"
+    ],
+    "core_tech_stack": {
+      "programming_languages": [
+        "Python",
+        "Java",
+        "JavaScript",
+        "SQL"
+      ],
+      "full_stack_and_backend": [
+        "React.js",
+        "Node.js",
+        "HTML5",
+        "CSS3",
+        "REST APIs",
+        "Express"
+      ],
+      "databases": [
+        "MySQL",
+        "PostgreSQL",
+        "MongoDB"
+      ],
+      "ai_and_automation": [
+        "Generative AI",
+        "LLM Fundamentals",
+        "Prompt Engineering",
+        "AI API Integration",
+        "Workflow Automation"
+      ],
+      "tools_and_platforms": [
+        "Git",
+        "GitHub",
+        "Visual Studio Code",
+        "Microsoft Excel",
+        "Power BI"
+      ],
+      "core_concepts": [
+        "Object-Oriented Programming (OOP)",
+        "DBMS",
+        "Data Structures & Algorithms",
+        "SDLC",
+        "System Design",
+        "Authentication",
+        "Role-Based Access Control (RBAC)"
+      ]
+    },
+    "key_projects": [
+      {
+        "name": "Smart Print — Secure Print Management Platform",
+        "type": "Full-Stack Web Application",
+        "tech": ["Node.js", "React.js", "REST APIs", "Database Management", "QR Authentication", "RBAC"],
+        "description": "Secure web-based platform connecting customers with authorized print vendors for controlled document printing, QR-code authentication, printer selection, and real-time status tracking."
+      },
+      {
+        "name": "Block Management Process Digitization",
+        "type": "Workflow Automation & System Architecture",
+        "tech": ["Workflow Design", "Maker-Checker Controls", "RBAC", "SLA Monitoring"],
+        "description": "Centralized digital workflow covering request submission, validation, approvals, audit trails, and process tracking."
+      },
+      {
+        "name": "Banking Operations Performance Dashboard",
+        "type": "Data Analytics & Reporting",
+        "tech": ["SQL", "Power BI", "Microsoft Excel"],
+        "description": "Interactive analytics dashboard for transaction tracking, workload monitoring, turnaround time, and operational KPIs."
+      }
+    ],
+    "certifications": [
+      "PCAP – Programming Essentials in Python",
+      "Problem Solving Through Programming in C – NPTEL",
+      "Advantech PaaS – Level 1, Level 2 & Level 3"
+    ]
+  }
+}
