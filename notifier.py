@@ -1,124 +1,46 @@
-"""
-Alerting Module using CallMeBot API (WhatsApp & Telegram)
-Dispatches formatted notifications for high-match job opportunities (score >= 75).
-"""
-
-import logging
 import os
 import urllib.parse
-from typing import Any, Dict
 import requests
 
-logger = logging.getLogger(__name__)
-
-CALLMEBOT_WHATSAPP_ENDPOINT = "https://api.callmebot.com/whatsapp.php"
-CALLMEBOT_TELEGRAM_ENDPOINT = "https://api.callmebot.com/text.php"
+TELEGRAM_USER = os.getenv("TELEGRAM_USER", "@charanb07")
 
 
-def format_alert_message(job: Dict[str, Any], evaluation: Dict[str, Any]) -> str:
-    """Formats job and AI match details into an eye-catching notification message."""
-    company = job.get("company", "Company")
-    title = job.get("title", "Software Engineer")
-    score = evaluation.get("match_score", 0)
-    location = job.get("location", "Remote/Hybrid")
-    source = job.get("source", "ATS")
-    url = job.get("url", "")
-    reasoning = evaluation.get("reasoning", "")
-    matched_skills = evaluation.get("matched_skills", [])
+class JobNotifier:
+    def __init__(self):
+        self.user = os.getenv("TELEGRAM_USER", "@charanb07")
 
-    skills_text = ", ".join(matched_skills[:6]) if matched_skills else "Core Software Stack"
+    def send_alert(self, job: dict, eval_result: dict) -> bool:
+        score = eval_result.get("score", eval_result.get("match_score", 0))
+        skills = ", ".join(eval_result.get("matched_skills", [])) or "Technical Alignment"
+        reason = eval_result.get("reason", eval_result.get("reasoning", "Strong profile overlap."))
 
-    # Truncate reasoning if too long for readability
-    if len(reasoning) > 280:
-        reasoning = reasoning[:277] + "..."
+        message = (
+            f"🎯 *NEW JOB MATCH ({score}/100)*\n\n"
+            f"🏢 *Company:* {job['company']}\n"
+            f"💼 *Role:* {job['title']}\n"
+            f"📍 *Location:* {job.get('location', 'N/A')}\n"
+            f"🌐 *Source:* {job.get('source', 'ATS')}\n\n"
+            f"✅ *Matched Skills:* {skills}\n"
+            f"💡 *Insight:* {reason}\n\n"
+            f"🔗 *Apply:* {job['url']}"
+        )
 
-    message = (
-        f"🎯 *NEW HIGH-MATCH JOB ALERT!* 🎯\n\n"
-        f"🏢 *Company:* {company}\n"
-        f"💼 *Role:* {title}\n"
-        f"📊 *Score:* {score}/100\n"
-        f"📍 *Location:* {location}\n"
-        f"🌐 *Platform:* {source}\n\n"
-        f"✅ *Matched Skills:*\n{skills_text}\n\n"
-        f"💡 *AI Match Insight:*\n{reasoning}\n\n"
-        f"🔗 *Apply Here:*\n{url}"
-    )
-    return message
+        encoded_text = urllib.parse.quote(message)
+        api_url = f"https://api.callmebot.com/text.php?user={self.user}&text={encoded_text}"
 
-
-class AlertNotifier:
-    def __init__(self, phone: str = None, whatsapp_key: str = None, telegram_user: str = None):
-        self.phone = (phone or os.getenv("CALLMEBOT_PHONE", "+918985897700")).strip()
-        self.whatsapp_key = (whatsapp_key or os.getenv("CALLMEBOT_API_KEY", "")).strip()
-        self.telegram_user = (telegram_user or os.getenv("TELEGRAM_USER", "")).strip()
-
-    def send_alert(self, job: Dict[str, Any], evaluation: Dict[str, Any]) -> bool:
-        """Sends alerts via Telegram and/or WhatsApp if score >= 75."""
-        score = evaluation.get("match_score", 0)
-        if score < 75:
-            logger.info(f"Skipping notification for '{job.get('title')}' (Score {score} < 75)")
-            return False
-
-        message_body = format_alert_message(job, evaluation)
-        dispatched = False
-
-        # 1. Send via Telegram if TELEGRAM_USER is configured
-        if self.telegram_user:
-            tg_sent = self._send_telegram(message_body, job)
-            if tg_sent:
-                dispatched = True
-
-        # 2. Send via WhatsApp if CALLMEBOT_API_KEY is configured
-        if self.whatsapp_key and self.whatsapp_key not in ["YOUR_CALLMEBOT_API_KEY", "YOUR_API_KEY", "test"]:
-            wa_sent = self._send_whatsapp(message_body, job)
-            if wa_sent:
-                dispatched = True
-
-        # 3. If neither destination was active or keys are in test mode
-        if not dispatched:
-            logger.warning("[AlertNotifier] No active external notification channel configured or in test mode.")
-            logger.info(f"[Alert Notification Preview]:\n{message_body}\n")
-            return True
-
-        return dispatched
-
-    def _send_telegram(self, message: str, job: Dict[str, Any]) -> bool:
-        """Sends Telegram notification via CallMeBot text API."""
         try:
-            params = {
-                "user": self.telegram_user,
-                "text": message,
-            }
-            resp = requests.get(CALLMEBOT_TELEGRAM_ENDPOINT, params=params, timeout=15)
-            if resp.status_code == 200 and "Successful" in resp.text:
-                logger.info(f"Telegram alert successfully dispatched to {self.telegram_user} for '{job.get('title')}' at '{job.get('company')}'.")
+            res = requests.get(api_url, timeout=12)
+            if res.status_code == 200:
+                print(f"[Notifier] Telegram alert sent to {self.user} for {job['title']}")
                 return True
             else:
-                logger.warning(f"Telegram alert response {resp.status_code}: {resp.text[:200]}")
+                print(f"[Notifier] Delivery failed ({res.status_code}): {res.text[:120]}")
                 return False
         except Exception as e:
-            logger.error(f"Failed to send Telegram message via CallMeBot: {e}")
-            return False
-
-    def _send_whatsapp(self, message: str, job: Dict[str, Any]) -> bool:
-        """Sends WhatsApp notification via CallMeBot WhatsApp API."""
-        try:
-            params = {
-                "phone": self.phone,
-                "text": message,
-                "apikey": self.whatsapp_key,
-            }
-            resp = requests.get(CALLMEBOT_WHATSAPP_ENDPOINT, params=params, timeout=15)
-            if resp.status_code == 200:
-                logger.info(f"WhatsApp alert successfully dispatched to {self.phone} for '{job.get('title')}' at '{job.get('company')}'.")
-                return True
-            else:
-                logger.error(f"WhatsApp alert response {resp.status_code}: {resp.text[:200]}")
-                return False
-        except Exception as e:
-            logger.error(f"Failed to send WhatsApp message via CallMeBot: {e}")
+            print(f"[Notifier] Request error: {e}")
             return False
 
 
-# Backward compatibility alias
-WhatsAppNotifier = AlertNotifier
+# Compatibility aliases
+WhatsAppNotifier = JobNotifier
+AlertNotifier = JobNotifier

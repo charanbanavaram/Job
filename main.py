@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 
 from dedup import DeduplicationManager
 from matcher import JobMatcher
-from notifier import WhatsAppNotifier
+from notifier import JobNotifier
 from sourcing import fetch_all_jobs
 
 # Configure logging
@@ -86,7 +86,7 @@ def run_job_tracker(
     # 6. Initialize AI Matcher & Notifier
     gemini_key = os.getenv("GEMINI_API_KEY", "")
     matcher = JobMatcher(api_key=gemini_key)
-    notifier = WhatsAppNotifier()
+    notifier = JobNotifier()
 
     high_matches_count = 0
     alerts_sent_count = 0
@@ -111,6 +111,8 @@ def run_job_tracker(
                 sent = notifier.send_alert(job, evaluation)
                 if sent:
                     alerts_sent_count += 1
+                    import time
+                    time.sleep(2)
             else:
                 logger.info("  [Dry Run] Alert not sent to network.")
 
