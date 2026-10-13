@@ -94,37 +94,38 @@ The bot connects directly to public ATS endpoints without requiring private recr
 
 ---
 
-## 📲 WhatsApp Alerts via CallMeBot
+## 📲 Instant Alerts via Telegram (@charanb07) & WhatsApp
 
-When `match_score >= 75`, a formatted WhatsApp notification is immediately dispatched to your phone:
+When `match_score >= 75`, a formatted notification is immediately dispatched:
+* **Telegram**: Instantly sent to `@charanb07` via CallMeBot Telegram API (Already verified and active!).
+* **WhatsApp**: Dispatched to `+918985897700` via CallMeBot WhatsApp API (configured when key is added).
 
 ```text
 🎯 *NEW HIGH-MATCH JOB ALERT!* 🎯
 
 🏢 *Company:* Razorpay
 💼 *Role:* Junior Software Engineer (Backend)
-📊 *Score:* 92/100
+📊 *Score:* 95/100
 📍 *Location:* Bengaluru, India
 🌐 *Platform:* Greenhouse
 
 ✅ *Matched Skills:*
-Python, SQL, REST APIs, Git
+Python, SQL, REST APIs, Git, Backend Development
 
 💡 *AI Match Insight:*
-Matches early-career criteria (0-2 years) with high overlap in Python and backend payments architecture.
+The role perfectly aligns with candidate's target roles (Junior Software Engineer, Backend), experience level (0-2 years), and technical stack. Every requirement specified—Python, SQL, REST APIs, and Git—is explicitly present.
 
 🔗 *Apply Here:*
 https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited/jobs/...
 ```
 
-### How to Activate Your Free CallMeBot WhatsApp API Key
-1. Save `+34 644 44 49 53` (or the phone number on [CallMeBot WhatsApp Setup](https://www.callmebot.com/blog/free-api-whatsapp-messages/)) to your phone contacts.
-2. Send the following WhatsApp message to that number:
-   ```text
-   I allow callmebot to send me messages
-   ```
-3. CallMeBot will reply with your personal `apikey` within seconds.
-4. Add your phone number and key to `.env` or GitHub Secrets.
+### Alert Channel Setup:
+1. **Telegram (@charanb07)**:
+   * Search for `@CallMeBot_txtbot` on Telegram and send `/start` once if you haven't already.
+   * Notifications are automatically routed to your Telegram user!
+2. **WhatsApp (+91 8985897700)**:
+   * Send WhatsApp message: `I allow callmebot to send me messages` to `+34 644 44 49 53`.
+   * Add your returned key to `CALLMEBOT_API_KEY`.
 
 ---
 

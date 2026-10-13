@@ -59,17 +59,33 @@ You MUST respond strictly with a valid JSON object in the following format with 
 
 
 class JobMatcher:
+    CANDIDATE_MODELS = [
+        "gemini-flash-latest",
+        "gemini-3.8-flash",
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+    ]
+
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY", "").strip()
-        self.model_name = "gemini-1.5-flash"
+        self.model_name = self.CANDIDATE_MODELS[0]
         self._sdk_client = None
 
         if self.api_key:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=self.api_key)
-                self._sdk_client = genai.GenerativeModel(self.model_name)
-                logger.info(f"Initialized Google Gemini SDK with model '{self.model_name}'.")
+                # Find first supported model
+                for m_name in self.CANDIDATE_MODELS:
+                    try:
+                        client = genai.GenerativeModel(m_name)
+                        # Test lightly or assign
+                        self.model_name = m_name
+                        self._sdk_client = client
+                        logger.info(f"Initialized Google Gemini SDK with model '{self.model_name}'.")
+                        break
+                    except Exception:
+                        continue
             except Exception as e:
                 logger.warning(f"Could not initialize google.generativeai SDK: {e}. Will use REST API fallback.")
 
@@ -91,7 +107,26 @@ class JobMatcher:
                     if parsed and "match_score" in parsed:
                         return self._normalize_result(parsed)
                 except Exception as e:
-                    logger.warning(f"Gemini SDK generation failed: {e}. Attempting REST fallback...")
+                    logger.warning(f"Gemini SDK generation failed on '{self.model_name}': {e}. Attempting alternative models...")
+                    # Try other models in candidate list
+                    import google.generativeai as genai
+                    for alt_model in self.CANDIDATE_MODELS:
+                        if alt_model == self.model_name:
+                            continue
+                        try:
+                            alt_client = genai.GenerativeModel(alt_model)
+                            prompt = _build_scoring_prompt(job, candidate)
+                            res = alt_client.generate_content(
+                                prompt,
+                                generation_config={"temperature": 0.2, "response_mime_type": "application/json"}
+                            )
+                            parsed = self._extract_json(res.text)
+                            if parsed and "match_score" in parsed:
+                                self.model_name = alt_model
+                                self._sdk_client = alt_client
+                                return self._normalize_result(parsed)
+                        except Exception:
+                            continue
 
             # Try via direct REST API
             rest_result = self._score_via_rest(job, candidate)
@@ -103,25 +138,25 @@ class JobMatcher:
         return self._local_rule_scoring(job, candidate)
 
     def _score_via_rest(self, job: Dict[str, Any], candidate: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Direct REST call to Gemini 1.5 Flash."""
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent?key={self.api_key}"
-            prompt = _build_scoring_prompt(job, candidate)
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2}
-            }
-            res = requests.post(url, json=payload, timeout=20)
-            if res.status_code == 200:
-                data = res.json()
-                text = data["candidates"][0]["content"]["parts"][0]["text"]
-                parsed = self._extract_json(text)
-                if parsed and "match_score" in parsed:
-                    return self._normalize_result(parsed)
-            else:
-                logger.warning(f"Gemini REST returned status {res.status_code}: {res.text[:200]}")
-        except Exception as e:
-            logger.warning(f"Gemini REST call failed: {e}")
+        """Direct REST call to Gemini Flash."""
+        for m_name in self.CANDIDATE_MODELS:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent?key={self.api_key}"
+                prompt = _build_scoring_prompt(job, candidate)
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.2}
+                }
+                res = requests.post(url, json=payload, timeout=20)
+                if res.status_code == 200:
+                    data = res.json()
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    parsed = self._extract_json(text)
+                    if parsed and "match_score" in parsed:
+                        self.model_name = m_name
+                        return self._normalize_result(parsed)
+            except Exception as e:
+                logger.warning(f"Gemini REST call failed on {m_name}: {e}")
         return None
 
     def _extract_json(self, text: str) -> Optional[Dict[str, Any]]:
