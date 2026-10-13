@@ -92,6 +92,22 @@ class JobMatcher:
     def score_job(self, job: Dict[str, Any], candidate_profile: Dict[str, Any]) -> Dict[str, Any]:
         """Scores a job description against the candidate profile (0-100)."""
         candidate = candidate_profile.get("candidate", candidate_profile)
+        title = (job.get("title") or "").lower()
+
+        # Fast path: Obvious non-technical roles (save Gemini quota for engineering roles)
+        non_tech_keywords = [
+            "audit", "sales", "recruiter", "talent acquisition", "legal", "hr",
+            "accountant", "marketing", "content writer", "vigilance", "alliances",
+            "compliance", "facilities", "collections", "customer support"
+        ]
+        if any(kw in title for kw in non_tech_keywords):
+            return {
+                "match_score": 15,
+                "reasoning": f"Role '{job.get('title')}' is in a non-technical domain ({', '.join([k for k in non_tech_keywords if k in title])}).",
+                "matched_skills": [],
+                "missing_skills": ["Software Engineering skills"],
+                "recommendation": "Not recommended"
+            }
 
         # 1. Try Gemini API if key is present
         if self.api_key:
