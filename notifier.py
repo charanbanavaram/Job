@@ -16,7 +16,7 @@ def sanitize_telegram_text(text: str) -> str:
     if not text:
         return ""
     # Strip HTML tags
-    cleaned = re.sub(r"<[^>]+>", " ", text)
+    cleaned = re.sub(r"<[^>]+>", " ", str(text))
     # Remove apostrophes and quotes that can trigger SQLi/XSS WAF rules
     cleaned = cleaned.replace("'", "").replace('"', "").replace("`", "")
     # Normalize multiple whitespace
@@ -31,14 +31,16 @@ class JobNotifier:
             self.user = f"@{self.user}"
 
     def send_alert(self, job: dict, eval_result: dict) -> bool:
-        """Sends an alert to Telegram via CallMeBot API with WAF protection and rate throttling."""
+        """Sends an alert to Telegram via CallMeBot API with WAF protection, experience fit, and throttling."""
         score = eval_result.get("score", eval_result.get("match_score", 0))
         skills_list = eval_result.get("matched_skills", [])
         skills = ", ".join(skills_list) if skills_list else "Technical Alignment"
         raw_reason = eval_result.get("reason", eval_result.get("reasoning", "Strong profile overlap."))
+        raw_exp_fit = eval_result.get("experience_fit", "0-2 years (Entry / Junior)")
         
         # Sanitize text fields
         reason = sanitize_telegram_text(raw_reason)
+        experience_fit = sanitize_telegram_text(raw_exp_fit)
         title = sanitize_telegram_text(job.get("title", "Untitled Role"))
         company = sanitize_telegram_text(job.get("company", "Company"))
         location = sanitize_telegram_text(job.get("location", "N/A"))
@@ -53,10 +55,11 @@ class JobNotifier:
             f"🎯 *NEW JOB MATCH ({score}/100)*\n\n"
             f"🏢 *Company:* {company}\n"
             f"💼 *Role:* {title}\n"
-            f"📍 *Office:* {location}\n"
+            f"📍 *Office -* {location}\n"
+            f"⏳ *Experience:* {experience_fit}\n"
             f"🌐 *Source:* {source}\n\n"
             f"✅ *Matched Skills:* {skills}\n"
-            f"💡 *Insight:* {reason}\n\n"
+            f"💡 *Fit Insight:* {reason}\n\n"
             f"🔗 *Apply:* {url}"
         )
 
@@ -65,7 +68,7 @@ class JobNotifier:
 
         try:
             res = requests.get(api_url, timeout=15)
-            # Pacing delay between consecutive alert dispatches so we never trip CallMeBot rate limits
+            # Throttling delay between consecutive alerts so we never trip CallMeBot rate limits
             time.sleep(2.5)
 
             if res.status_code == 200:

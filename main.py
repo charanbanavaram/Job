@@ -1,11 +1,13 @@
 """
 Automated Job Notification System - Main Orchestrator
 
-1. Resume Profile: Loads candidate profile (skills, 0-2 yrs experience, target roles).
+1. Resume Profile: Loads candidate profile (1 yr exp, 0-2 yrs target, Bengaluru/Chennai/Hyderabad priority).
 2. Job Sourcing: Fetches live postings from Greenhouse, Lever, Ashby.
 3. Deduplication: Ensures no job in seen_jobs.txt is ever alerted or re-processed.
-4. Pre-filtering: Filters for technical roles, skipping Gemini API for non-tech to protect quota.
-5. AI Matching: Evaluates each technical job using Google Gemini 1.5 Flash (0-100 score).
+4. Pre-filtering:
+   - Technical Role Filter: Shields non-engineering jobs.
+   - Hard Geographic Filter: Shields non-India / foreign onsite locations.
+5. AI Matching: Evaluates qualified jobs using Google Gemini 1.5 Flash (0-100 score).
 6. Alerting: Sends Telegram alert via CallMeBot API when match_score >= 60.
 7. Updates: Records processed jobs in seen_jobs.txt.
 """
@@ -14,6 +16,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 import time
 from typing import Any, Dict, List
@@ -47,6 +50,38 @@ TECH_KEYWORDS = [
     "test",
 ]
 
+# Allowed geographic terms for India and Global Remote
+ALLOWED_GEO_KEYWORDS = [
+    "india",
+    "bengaluru",
+    "bangalore",
+    "chennai",
+    "hyderabad",
+    "pune",
+    "mumbai",
+    "gurgaon",
+    "gurugram",
+    "noida",
+    "delhi",
+    "remote",
+    "anywhere",
+    "worldwide",
+]
+
+# Explicit foreign indicators that disqualify a job (unless India or Anywhere is explicitly specified)
+FOREIGN_GEO_INDICATORS = [
+    r"\bus\b", r"\busa\b", r"\bunited states\b", r"\buk\b", r"\bunited kingdom\b",
+    r"\blondon\b", r"\beurope\b", r"\bemea\b", r"\bamer\b", r"\bapac\b",
+    r"\bcanada\b", r"\btoronto\b", r"\bvancouver\b", r"\bgermany\b", r"\bberlin\b",
+    r"\bfrance\b", r"\bparis\b", r"\bjapan\b", r"\btokyo\b", r"\bsingapore\b",
+    r"\baustralia\b", r"\bsydney\b", r"\bmelbourne\b", r"\bphilippines\b",
+    r"\bmalaysia\b", r"\bindonesia\b", r"\bsan francisco\b", r"\bbay area\b",
+    r"\bnew york\b", r"\bnyc\b", r"\bchicago\b", r"\baustin\b", r"\bseattle\b",
+    r"\bfoster city\b", r"\bpalo alto\b", r"\bcalifornia\b", r"\btexas\b",
+    r"\billinois\b", r"\bireland\b", r"\bdublin\b", r"\bnetherlands\b",
+    r"\bamsterdam\b", r"\bbrazil\b", r"\blatam\b", r"\bnorth america\b",
+]
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -75,6 +110,33 @@ def is_technical_role(title: str) -> bool:
     return any(kw in title_lower for kw in TECH_KEYWORDS)
 
 
+def is_geographic_match(location_str: str) -> bool:
+    """
+    Hard geographic pre-filter:
+    - Allows India, Bengaluru, Chennai, Hyderabad, Pune, Mumbai, Delhi/NCR, Remote, Anywhere, Worldwide.
+    - Excludes explicit US, UK, Europe, Canada, APAC-ex-India, or foreign cities.
+    """
+    if not location_str or location_str.strip().lower() in ["n/a", "unspecified"]:
+        return False
+
+    loc = location_str.lower()
+
+    # Explicit global or India remote overrides
+    if any(k in loc for k in ["india remote", "anywhere", "worldwide", "remote, global"]):
+        return True
+
+    # Check for foreign country or city indicators
+    for pattern in FOREIGN_GEO_INDICATORS:
+        if re.search(pattern, loc):
+            # If a foreign token is present, only permit if it explicitly mentions India or target Indian cities
+            if any(k in loc for k in ["india", "bengaluru", "bangalore", "chennai", "hyderabad"]):
+                return True
+            return False
+
+    # Check if location contains any allowed geographic keywords
+    return any(k in loc for k in ALLOWED_GEO_KEYWORDS)
+
+
 def run_job_tracker(
     profile_path: str = "profile.json",
     seen_file: str = "seen_jobs.txt",
@@ -82,7 +144,7 @@ def run_job_tracker(
     dry_run: bool = False,
     score_threshold: int = ALERT_THRESHOLD,
 ) -> Dict[str, int]:
-    """Executes a full run of the job sourcing, matching, and notification pipeline."""
+    """Executes a full run of the job sourcing, filtering, matching, and notification pipeline."""
     # 1. Load Environment Variables (.env)
     load_dotenv()
 
@@ -95,7 +157,8 @@ def run_job_tracker(
     profile = load_candidate_profile(profile_path)
     cand_info = profile.get("candidate", {})
     logger.info(f"Loaded Candidate: {cand_info.get('name')} | Exp: {cand_info.get('experience_level')}")
-    logger.info(f"Target Roles: {', '.join(cand_info.get('target_roles', [])[:4])}...")
+    logger.info(f"Target Seniority: {', '.join(cand_info.get('target_seniority', [])[:3])}...")
+    logger.info(f"Geo Priorities: 1. Bengaluru | 2. Chennai | 3. Hyderabad | Remote (India)")
 
     # 3. Initialize Deduplication Manager
     dedup = DeduplicationManager(filepath=seen_file)
@@ -124,31 +187,44 @@ def run_job_tracker(
     alerts_sent_count = 0
     processed_count = 0
     non_tech_skipped_count = 0
+    geo_skipped_count = 0
+    ai_evaluated_count = 0
 
     # 7. Evaluate and Alert
     for idx, job in enumerate(unseen_jobs, start=1):
         job_id = job["id"]
         job_title = job["title"]
         job_comp = job["company"]
+        job_loc = job.get("location", "N/A")
 
-        # Step 2 Remediation: Strict Technical Role Pre-Filter
+        # Pre-filter 1: Strict Technical Role Filter
         if not is_technical_role(job_title):
             non_tech_skipped_count += 1
-            logger.info(f"[{idx}/{len(unseen_jobs)}] [Non-Tech Shield] '{job_title}' @ {job_comp} -> Skipped AI (score=10)")
+            logger.info(f"[{idx}/{len(unseen_jobs)}] [Non-Tech Shield] '{job_title}' @ {job_comp} -> Skipped")
             if not dry_run:
                 dedup.mark_seen(job_id)
             processed_count += 1
             continue
 
-        logger.info(f"[{idx}/{len(unseen_jobs)}] Evaluating: '{job_title}' @ {job_comp} ({job['source']})")
+        # Pre-filter 2: Hard Geographic Filter (India / Remote only)
+        if not is_geographic_match(job_loc):
+            geo_skipped_count += 1
+            logger.info(f"[{idx}/{len(unseen_jobs)}] [Geo Shield] '{job_title}' @ {job_comp} (Loc: '{job_loc}') -> Outside India/Remote preference")
+            if not dry_run:
+                dedup.mark_seen(job_id)
+            processed_count += 1
+            continue
 
-        # Step 2 Remediation: 1.5-second pacing delay to shield Gemini Free-Tier RPM quota
+        logger.info(f"[{idx}/{len(unseen_jobs)}] Evaluating: '{job_title}' @ {job_comp} | Loc: '{job_loc}' ({job['source']})")
+        ai_evaluated_count += 1
+
+        # 1.5-second pacing delay to shield Gemini Free-Tier RPM quota
         time.sleep(1.5)
 
         # Score with Gemini 1.5 Flash (or heuristic fallback)
         evaluation = matcher.score_job(job, profile)
-        score = evaluation.get("match_score", evaluation.get("score", 0))
-        logger.info(f"  -> Score: {score}/100 | Recommendation: {evaluation.get('recommendation')}")
+        score = evaluation.get("score", evaluation.get("match_score", 0))
+        logger.info(f"  -> Score: {score}/100 | Exp: {evaluation.get('experience_fit')} | Loc: {evaluation.get('location_fit')}")
 
         if score >= score_threshold:
             high_matches_count += 1
@@ -172,6 +248,8 @@ def run_job_tracker(
         "skipped_seen": skipped_count,
         "processed": processed_count,
         "non_tech_shielded": non_tech_skipped_count,
+        "geo_shielded": geo_skipped_count,
+        "ai_evaluated": ai_evaluated_count,
         "high_matches": high_matches_count,
         "alerts_sent": alerts_sent_count,
         "total_seen_now": dedup.count(),
@@ -183,6 +261,8 @@ def run_job_tracker(
     logger.info(f"  - Already Seen & Skipped:   {metrics['skipped_seen']}")
     logger.info(f"  - New Jobs Processed:       {metrics['processed']}")
     logger.info(f"  - Non-Tech Filter Shield:   {metrics['non_tech_shielded']}")
+    logger.info(f"  - Geo Filter Shield:        {metrics['geo_shielded']}")
+    logger.info(f"  - AI Evaluated:             {metrics['ai_evaluated']}")
     logger.info(f"  - High Matches (>= {score_threshold}):   {metrics['high_matches']}")
     logger.info(f"  - Telegram Alerts Sent:     {metrics['alerts_sent']}")
     logger.info(f"  - Total Seen Jobs Stored:   {metrics['total_seen_now']}")

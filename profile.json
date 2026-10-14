@@ -5,20 +5,32 @@
     "phone": "+918985897700",
     "location": "Bengaluru, Karnataka, India",
     "linkedin": "https://linkedin.com/in/banavaram-charan-733ab4222",
-    "experience_level": "0-2 years (Junior / Entry-Level / Early Career / Fresher / Apprentice)",
+    "total_experience_years": 1,
+    "experience_level": "1 Year (0-2 years, Entry-Level / Junior / Associate / SDE 1 / Early Career)",
+    "background": "Operations & Software Development at Standard Chartered Global Business Services (Bengaluru)",
     "education": {
       "degree": "Bachelor of Technology (B.Tech), Computer Science & Engineering",
       "institution": "Christ (Deemed to be University), Bengaluru",
       "graduation_year": 2025,
       "cgpa": "8.23 / 10"
     },
-    "current_role": "Apprentice – Financial Liabilities Operations (WRB), Standard Chartered Bank GBS (Oct 2025 – Present)",
+    "current_role": "Operations & Software Development, Standard Chartered Bank GBS (Bengaluru)",
+    "target_seniority": [
+      "Entry-Level",
+      "Junior",
+      "Associate",
+      "SDE 1",
+      "Engineer 1",
+      "Early Career",
+      "Apprentice",
+      "0-2 years experience"
+    ],
     "target_roles": [
+      "Software Engineer",
       "Full Stack Developer",
       "Full Stack Engineer",
       "Backend Developer",
       "Backend Engineer",
-      "Software Engineer",
       "Software Development Engineer",
       "SDE 1",
       "Associate Software Engineer",
@@ -36,15 +48,22 @@
       "full_stack_and_backend": [
         "React.js",
         "Node.js",
-        "HTML5",
-        "CSS3",
+        "Express",
+        "FastAPI",
         "REST APIs",
-        "Express"
+        "HTML5",
+        "CSS3"
       ],
       "databases": [
         "MySQL",
         "PostgreSQL",
         "MongoDB"
+      ],
+      "cloud_and_devops": [
+        "Git",
+        "Docker fundamentals",
+        "Cloud / DevOps fundamentals",
+        "CI/CD Basics"
       ],
       "ai_and_automation": [
         "Generative AI",
@@ -57,6 +76,7 @@
         "Git",
         "GitHub",
         "Visual Studio Code",
+        "Postman",
         "Microsoft Excel",
         "Power BI"
       ],
@@ -65,16 +85,61 @@
         "DBMS",
         "Data Structures & Algorithms",
         "SDLC",
-        "System Design",
-        "Authentication",
-        "Role-Based Access Control (RBAC)"
+        "System Design Fundamentals",
+        "Authentication & Authorization",
+        "RESTful Architecture"
+      ]
+    },
+    "geographic_preferences": {
+      "priority_1": ["Bengaluru", "Bangalore"],
+      "priority_2": ["Chennai"],
+      "priority_3": ["Hyderabad"],
+      "acceptable": [
+        "Remote (India only)",
+        "Remote",
+        "Pune",
+        "Mumbai",
+        "Delhi NCR",
+        "Delhi",
+        "Gurugram",
+        "Gurgaon",
+        "Noida",
+        "India"
+      ],
+      "strictly_excluded": [
+        "United States",
+        "US",
+        "USA",
+        "San Francisco",
+        "New York",
+        "Seattle",
+        "Austin",
+        "United Kingdom",
+        "UK",
+        "London",
+        "Europe",
+        "EU",
+        "Germany",
+        "Berlin",
+        "Munich",
+        "France",
+        "Paris",
+        "Canada",
+        "Toronto",
+        "Vancouver",
+        "Australia",
+        "Sydney",
+        "Melbourne",
+        "Singapore",
+        "Tokyo",
+        "Japan"
       ]
     },
     "key_projects": [
       {
         "name": "Smart Print — Secure Print Management Platform",
         "type": "Full-Stack Web Application",
-        "tech": ["Node.js", "React.js", "REST APIs", "Database Management", "QR Authentication", "RBAC"],
+        "tech": ["Node.js", "React.js", "REST APIs", "MySQL", "QR Authentication", "RBAC"],
         "description": "Secure web-based platform connecting customers with authorized print vendors for controlled document printing, QR-code authentication, printer selection, and real-time status tracking."
       },
       {
