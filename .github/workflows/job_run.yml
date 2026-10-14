@@ -17,6 +17,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Set up Python 3.11
@@ -48,5 +49,6 @@ jobs:
             echo "No new jobs added to seen_jobs.txt; nothing to commit."
           else
             git commit -m "chore: update seen_jobs.txt [skip ci]"
-            git push
+            git pull --rebase origin main || true
+            git push || echo "::warning::Could not push seen_jobs.txt. Ensure Workflow Permissions are set to 'Read and write permissions' in GitHub Repo Settings -> Actions -> General."
           fi
