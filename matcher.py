@@ -199,14 +199,18 @@ class JobMatcher:
 
     def _normalize_result(self, raw: Dict[str, Any]) -> Dict[str, Any]:
         """Ensures score is bounded integer 0-100 and fields are present."""
-        score = int(raw.get("match_score", 0))
+        raw_score = raw.get("score") if "score" in raw else raw.get("match_score", 0)
+        score = int(raw_score)
         score = max(0, min(100, score))
+        reason = str(raw.get("reason", raw.get("reasoning", "")))
         return {
+            "score": score,
             "match_score": score,
-            "reasoning": str(raw.get("reasoning", "")),
+            "reason": reason,
+            "reasoning": reason,
             "matched_skills": list(raw.get("matched_skills", [])),
             "missing_skills": list(raw.get("missing_skills", [])),
-            "recommendation": str(raw.get("recommendation", "Evaluated by Gemini 1.5 Flash")),
+            "recommendation": str(raw.get("recommendation", "Evaluated by Gemini Flash")),
         }
 
     def _local_rule_scoring(self, job: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[str, Any]:
@@ -288,7 +292,9 @@ class JobMatcher:
             reasoning += f"Note: {', '.join(penalties)}."
 
         return {
+            "score": base_score,
             "match_score": base_score,
+            "reason": reasoning,
             "reasoning": reasoning,
             "matched_skills": list(set(matched)),
             "missing_skills": list(set(missing)),

@@ -9,7 +9,7 @@ An automated job search and alerting system tailored for **Banavaram Charan** (E
 ```
                        ┌──────────────────────────────┐
                        │    GitHub Actions (Cron)     │
-                       │     (Every 2 Hours)          │
+                       │       (Every 1 Hour)         │
                        └──────────────┬───────────────┘
                                       │
                                       ▼
@@ -175,8 +175,8 @@ python main.py --threshold 80
 
 ## ⏰ 24/7 Automation via GitHub Actions
 
-The system is configured in `.github/workflows/job_run.yml` to run **every 2 hours** via GitHub Actions cron:
-- Schedule: `0 */2 * * *`
+The system is configured in `.github/workflows/job_run.yml` to run **every 1 hour** via GitHub Actions cron:
+- Schedule: `0 * * * *`
 - Automatically updates `seen_jobs.txt` and commits it back to the repository so you **never receive duplicate alerts**.
 
 ### Configuring Secrets in GitHub
@@ -187,6 +187,7 @@ Add the following 3 secrets:
 1. `GEMINI_API_KEY`: Your Google Gemini API Key
 2. `CALLMEBOT_PHONE`: `+918985897700`
 3. `CALLMEBOT_API_KEY`: Your CallMeBot API key
+4. `TELEGRAM_USER`: `@charanb07`
 
 ---
 
@@ -196,7 +197,7 @@ Add the following 3 secrets:
 job-tracker-bot/
 ├── .github/
 │   └── workflows/
-│       └── job_run.yml          # GitHub Actions cron workflow (every 2 hours)
+│       └── job_run.yml          # GitHub Actions cron workflow (every 1 hour)
 ├── profile.json                 # Parsed candidate profile & tech stack
 ├── sourcing.py                  # ATS fetchers (Greenhouse, Lever, Ashby)
 ├── matcher.py                   # Google Gemini 1.5 Flash AI scoring engine
