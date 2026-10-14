@@ -49,7 +49,7 @@ def run_job_tracker(
     seen_file: str = "seen_jobs.txt",
     limit: int = None,
     dry_run: bool = False,
-    score_threshold: int = 75,
+    score_threshold: int = 60,
 ) -> Dict[str, int]:
     """Executes a full run of the job sourcing, matching, and notification pipeline."""
     # 1. Load Environment Variables (.env)
@@ -151,7 +151,7 @@ def main():
     parser.add_argument("--seen-file", default="seen_jobs.txt", help="Path to seen_jobs.txt")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of jobs to score")
     parser.add_argument("--dry-run", action="store_true", help="Perform dry run without updating seen jobs or sending live alerts")
-    parser.add_argument("--threshold", type=int, default=75, help="Match score threshold for WhatsApp alert (default: 75)")
+    parser.add_argument("--threshold", type=int, default=60, help="Match score threshold for alert (default: 60)")
     args = parser.parse_args()
 
     run_job_tracker(

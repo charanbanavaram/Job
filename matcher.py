@@ -298,5 +298,5 @@ class JobMatcher:
             "reasoning": reasoning,
             "matched_skills": list(set(matched)),
             "missing_skills": list(set(missing)),
-            "recommendation": "Strong match" if base_score >= 75 else ("Moderate fit" if base_score >= 50 else "Low fit")
+            "recommendation": "Strong match" if base_score >= 60 else ("Moderate fit" if base_score >= 40 else "Low fit")
         }
