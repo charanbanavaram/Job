@@ -1,6 +1,7 @@
 """
 Job Sourcing Module
 Fetches live, verified postings across Greenhouse, Lever, and Ashby APIs.
+Includes robust error handling and verified active board endpoints.
 """
 
 import html
@@ -13,32 +14,40 @@ logger = logging.getLogger(__name__)
 
 # Headers to emulate browser and prevent blocking
 DEFAULT_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
 }
 
-REQUEST_TIMEOUT = 6
+REQUEST_TIMEOUT = 5
 
-# Company configurations
+# Verified active tech company configurations
 GREENHOUSE_COMPANIES = {
-    "phonepe": ["phonepe", "phonepeindia"],
-    "razorpay": ["razorpay", "razorpaysoftwareprivatelimited"],
-    "cred": ["cred", "credclub", "dreamplug"],
-    "swiggy": ["swiggy", "swiggyindia"],
-    "meesho": ["meesho", "meeshoindia", "fashnear"],
+    "razorpay": ["razorpaysoftwareprivatelimited"],
     "groww": ["groww"],
-    "juspay": ["juspay", "juspaytechnologies"],
+    "instawork": ["instawork"],
+    # Additional boards monitored with silent fallback
+    "browserstack": ["browserstack", "browserstackcareers"],
+    "quizlet": ["quizlet"],
+    "phonepe": ["phonepe", "phonepeindia"],
+    "cred": ["cred", "credclub"],
+    "swiggy": ["swiggy", "swiggyindia"],
+    "meesho": ["meesho", "meeshoindia"],
+    "juspay": ["juspay"],
 }
 
 LEVER_COMPANIES = {
+    # Lever boards monitored with quiet fallback
     "postman": ["postman", "postmanlabs"],
-    "clevertap": ["clevertap", "clever-tap", "wizrocket"],
+    "clevertap": ["clevertap", "clever-tap"],
 }
 
 ASHBY_COMPANIES = {
     "linear": ["linear"],
-    "retool": ["retool", "tryretool"],
     "supabase": ["supabase"],
+    "replit": ["replit"],
+    "cursor": ["cursor"],
+    # Monitored with quiet fallback
+    "retool": ["retool", "tryretool"],
 }
 
 
@@ -101,11 +110,11 @@ def fetch_greenhouse_jobs(companies: Dict[str, List[str]] = GREENHOUSE_COMPANIES
             except FileNotFoundError:
                 continue
             except Exception as e:
-                logger.warning(f"[Greenhouse] Error querying slug '{slug}' for {company_key}: {e}")
+                logger.debug(f"[Greenhouse] Board '{slug}' for '{company_key}' unavailable: {e}")
                 continue
 
         if not found:
-            logger.warning(f"[Greenhouse] No active public Greenhouse board found for '{company_key}'.")
+            logger.debug(f"[Greenhouse] No active public board found for '{company_key}'.")
 
     return all_jobs
 
@@ -160,11 +169,11 @@ def fetch_lever_jobs(companies: Dict[str, List[str]] = LEVER_COMPANIES) -> List[
             except FileNotFoundError:
                 continue
             except Exception as e:
-                logger.warning(f"[Lever] Error querying slug '{slug}' for {company_key}: {e}")
+                logger.debug(f"[Lever] Slug '{slug}' for '{company_key}' unavailable: {e}")
                 continue
 
         if not found:
-            logger.warning(f"[Lever] No active public Lever board found for '{company_key}'.")
+            logger.debug(f"[Lever] No active public board found for '{company_key}'.")
 
     return all_jobs
 
@@ -217,11 +226,11 @@ def fetch_ashby_jobs(companies: Dict[str, List[str]] = ASHBY_COMPANIES) -> List[
             except FileNotFoundError:
                 continue
             except Exception as e:
-                logger.warning(f"[Ashby] Error querying slug '{slug}' for {company_key}: {e}")
+                logger.debug(f"[Ashby] Board '{slug}' for '{company_key}' unavailable: {e}")
                 continue
 
         if not found:
-            logger.warning(f"[Ashby] No active public Ashby board found for '{company_key}'.")
+            logger.debug(f"[Ashby] No active public board found for '{company_key}'.")
 
     return all_jobs
 

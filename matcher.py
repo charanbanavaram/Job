@@ -1,13 +1,14 @@
 """
 AI Matching Module
 Uses Google Gemini 1.5 Flash API to score job postings against candidate profile (0-100).
-Includes resilient fallbacks for offline testing or environments without active API keys.
+Includes resilient fallbacks for offline testing, rate limits (429), or environments without active API keys.
 """
 
 import json
 import logging
 import os
 import re
+import time
 from typing import Any, Dict, List, Optional
 import requests
 
@@ -40,12 +41,13 @@ Job Posting:
 
 Evaluation Criteria:
 1. Role alignment: Does the job title and core responsibility align with Software Engineer, Full Stack, Backend, or Cloud/Ops?
-2. Experience alignment: The candidate has 0-2 years of experience (early career, entry-level, junior, SDE 1, associate, apprentice). Heavily penalize Senior / Lead / Staff roles requiring 5+ years.
+2. Experience alignment: The candidate has 0-2 years of experience (early career, entry-level, junior, SDE 1, associate, apprentice). Moderately penalize Senior / Lead / Staff roles requiring 5+ years.
 3. Tech stack alignment: Reward overlap with Python, Java, JavaScript, React.js, Node.js, SQL, Databases (PostgreSQL, MySQL, MongoDB), REST APIs, Automation, and Git.
 4. Final Score: An integer from 0 to 100.
    - 75 to 100: Strong match for early-career / 0-2 years software/backend/fullstack role matching skills.
-   - 50 to 74: Partial match (e.g. tech stack match but mid-level requirement, or adjacent tech stack).
-   - 0 to 49: Poor match (non-technical roles like HR, Sales, Legal, or high senior/principal leadership).
+   - 60 to 74: Good match / viable candidate (e.g. solid tech stack overlap, general software engineer, or mid-level role open to strong junior profiles).
+   - 40 to 59: Partial match (adjacent tech stack or specialized field).
+   - 0 to 39: Poor match (non-technical roles like HR, Sales, Legal, or high senior/principal leadership).
 
 You MUST respond strictly with a valid JSON object in the following format with no markdown wrappers or other commentary:
 {{
@@ -61,8 +63,6 @@ You MUST respond strictly with a valid JSON object in the following format with 
 class JobMatcher:
     CANDIDATE_MODELS = [
         "gemini-flash-latest",
-        "gemini-3.8-flash",
-        "gemini-2.5-flash",
         "gemini-1.5-flash",
     ]
 
@@ -75,11 +75,9 @@ class JobMatcher:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=self.api_key)
-                # Find first supported model
                 for m_name in self.CANDIDATE_MODELS:
                     try:
                         client = genai.GenerativeModel(m_name)
-                        # Test lightly or assign
                         self.model_name = m_name
                         self._sdk_client = client
                         logger.info(f"Initialized Google Gemini SDK with model '{self.model_name}'.")
@@ -94,7 +92,7 @@ class JobMatcher:
         candidate = candidate_profile.get("candidate", candidate_profile)
         title = (job.get("title") or "").lower()
 
-        # Fast path: Obvious non-technical roles (save Gemini quota for engineering roles)
+        # Obvious non-technical keywords
         non_tech_keywords = [
             "audit", "sales", "recruiter", "talent acquisition", "legal", "hr",
             "accountant", "marketing", "content writer", "vigilance", "alliances",
@@ -102,8 +100,10 @@ class JobMatcher:
         ]
         if any(kw in title for kw in non_tech_keywords):
             return {
-                "match_score": 15,
-                "reasoning": f"Role '{job.get('title')}' is in a non-technical domain ({', '.join([k for k in non_tech_keywords if k in title])}).",
+                "score": 10,
+                "match_score": 10,
+                "reason": f"Role '{job.get('title')}' is in a non-technical domain.",
+                "reasoning": f"Role '{job.get('title')}' is in a non-technical domain.",
                 "matched_skills": [],
                 "missing_skills": ["Software Engineering skills"],
                 "recommendation": "Not recommended"
@@ -123,33 +123,18 @@ class JobMatcher:
                     if parsed and "match_score" in parsed:
                         return self._normalize_result(parsed)
                 except Exception as e:
-                    logger.warning(f"Gemini SDK generation failed on '{self.model_name}': {e}. Attempting alternative models...")
-                    # Try other models in candidate list
-                    import google.generativeai as genai
-                    for alt_model in self.CANDIDATE_MODELS:
-                        if alt_model == self.model_name:
-                            continue
-                        try:
-                            alt_client = genai.GenerativeModel(alt_model)
-                            prompt = _build_scoring_prompt(job, candidate)
-                            res = alt_client.generate_content(
-                                prompt,
-                                generation_config={"temperature": 0.2, "response_mime_type": "application/json"}
-                            )
-                            parsed = self._extract_json(res.text)
-                            if parsed and "match_score" in parsed:
-                                self.model_name = alt_model
-                                self._sdk_client = alt_client
-                                return self._normalize_result(parsed)
-                        except Exception:
-                            continue
+                    err_msg = str(e)
+                    if "429" in err_msg or "quota" in err_msg.lower():
+                        logger.warning(f"Gemini API 429 Quota limit encountered on '{self.model_name}'. Falling back immediately to heuristic engine.")
+                    else:
+                        logger.warning(f"Gemini SDK generation failed: {e}. Falling back to heuristic engine.")
 
-            # Try via direct REST API
+            # Try via direct REST API if SDK not configured
             rest_result = self._score_via_rest(job, candidate)
             if rest_result:
                 return rest_result
 
-        # 2. Intelligent local scoring fallback (for test execution without valid API key)
+        # 2. Intelligent local scoring fallback (deterministic heuristic engine)
         logger.info(f"Using local rule-based matching engine for '{job.get('title')}' at '{job.get('company')}'.")
         return self._local_rule_scoring(job, candidate)
 
@@ -163,7 +148,7 @@ class JobMatcher:
                     "contents": [{"parts": [{"text": prompt}]}],
                     "generationConfig": {"temperature": 0.2}
                 }
-                res = requests.post(url, json=payload, timeout=20)
+                res = requests.post(url, json=payload, timeout=12)
                 if res.status_code == 200:
                     data = res.json()
                     text = data["candidates"][0]["content"]["parts"][0]["text"]
@@ -171,6 +156,9 @@ class JobMatcher:
                     if parsed and "match_score" in parsed:
                         self.model_name = m_name
                         return self._normalize_result(parsed)
+                elif res.status_code == 429:
+                    logger.warning(f"Gemini REST 429 Quota reached on {m_name}.")
+                    break
             except Exception as e:
                 logger.warning(f"Gemini REST call failed on {m_name}: {e}")
         return None
@@ -188,7 +176,6 @@ class JobMatcher:
         try:
             return json.loads(clean)
         except Exception:
-            # Try regex to locate first { ... } block
             match = re.search(r"\{.*\}", clean, re.DOTALL)
             if match:
                 try:
@@ -228,7 +215,9 @@ class JobMatcher:
         non_tech_keywords = ["audit", "sales", "recruiter", "talent acquisition", "legal", "hr", "accountant", "marketing", "content writer"]
         if any(kw in title for kw in non_tech_keywords):
             return {
-                "match_score": 15,
+                "score": 10,
+                "match_score": 10,
+                "reason": "Non-technical or unrelated domain role.",
                 "reasoning": "Non-technical or unrelated domain role.",
                 "matched_skills": [],
                 "missing_skills": ["Software Engineering skills"],
@@ -239,8 +228,8 @@ class JobMatcher:
         senior_keywords = ["staff", "principal", "director", "head of", "lead", "architect", "manager", "vp", "senior", "sr."]
         is_senior = any(re.search(r"\b" + re.escape(w) + r"\b", title) for w in senior_keywords)
         if is_senior:
-            penalties.append("Role requires Senior/Staff/Lead level experience")
-            score -= 30
+            penalties.append("Requires Senior/Staff/Lead level experience")
+            score -= 25
 
         # Junior / Fresher bonus
         junior_keywords = ["junior", "jr", "associate", "intern", "apprentice", "graduate", "fresher", "entry level", "sde 1", "sde i", "sde-1", "engineer 1", "early career"]
@@ -282,12 +271,11 @@ class JobMatcher:
                     missing.append(display_name)
 
         # Base score scaling
-        base_score = max(10, min(95, score + 20))
+        base_score = max(10, min(95, score + 25))
 
-        # Build reasoning
-        reasoning = f"Heuristic evaluation: Title '{job.get('title')}' matched target engineering domains. "
+        reasoning = f"Heuristic match: '{job.get('title')}' in engineering domain. "
         if matched:
-            reasoning += f"Detected core skills: {', '.join(matched[:5])}. "
+            reasoning += f"Skills: {', '.join(matched[:5])}. "
         if penalties:
             reasoning += f"Note: {', '.join(penalties)}."
 

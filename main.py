@@ -4,9 +4,10 @@ Automated Job Notification System - Main Orchestrator
 1. Resume Profile: Loads candidate profile (skills, 0-2 yrs experience, target roles).
 2. Job Sourcing: Fetches live postings from Greenhouse, Lever, Ashby.
 3. Deduplication: Ensures no job in seen_jobs.txt is ever alerted or re-processed.
-4. AI Matching: Evaluates each job using Google Gemini 1.5 Flash (0-100 score).
-5. Alerting: Sends WhatsApp alert via CallMeBot API when match_score >= 75.
-6. Updates: Records processed jobs in seen_jobs.txt.
+4. Pre-filtering: Filters for technical roles, skipping Gemini API for non-tech to protect quota.
+5. AI Matching: Evaluates each technical job using Google Gemini 1.5 Flash (0-100 score).
+6. Alerting: Sends Telegram alert via CallMeBot API when match_score >= 60.
+7. Updates: Records processed jobs in seen_jobs.txt.
 """
 
 import argparse
@@ -14,6 +15,7 @@ import json
 import logging
 import os
 import sys
+import time
 from typing import Any, Dict, List
 from dotenv import load_dotenv
 
@@ -21,6 +23,29 @@ from dedup import DeduplicationManager
 from matcher import JobMatcher
 from notifier import JobNotifier
 from sourcing import fetch_all_jobs
+
+# Default alert threshold tuned for early career / high profile overlap
+ALERT_THRESHOLD = 60
+
+# Technical role keywords to filter out non-engineering jobs before calling Gemini
+TECH_KEYWORDS = [
+    "engineer",
+    "developer",
+    "sde",
+    "backend",
+    "frontend",
+    "full stack",
+    "fullstack",
+    "software",
+    "cloud",
+    "devops",
+    "platform",
+    "intern",
+    "infrastructure",
+    "systems",
+    "qa",
+    "test",
+]
 
 # Configure logging
 logging.basicConfig(
@@ -44,12 +69,18 @@ def load_candidate_profile(profile_path: str = "profile.json") -> Dict[str, Any]
     return data
 
 
+def is_technical_role(title: str) -> bool:
+    """Pre-filters role title against technical engineering keywords."""
+    title_lower = (title or "").lower()
+    return any(kw in title_lower for kw in TECH_KEYWORDS)
+
+
 def run_job_tracker(
     profile_path: str = "profile.json",
     seen_file: str = "seen_jobs.txt",
     limit: int = None,
     dry_run: bool = False,
-    score_threshold: int = 60,
+    score_threshold: int = ALERT_THRESHOLD,
 ) -> Dict[str, int]:
     """Executes a full run of the job sourcing, matching, and notification pipeline."""
     # 1. Load Environment Variables (.env)
@@ -57,6 +88,7 @@ def run_job_tracker(
 
     logger.info("=" * 60)
     logger.info("Starting Automated Job Notification Run")
+    logger.info(f"Target Alert Threshold: >= {score_threshold}/100")
     logger.info("=" * 60)
 
     # 2. Load Resume Profile
@@ -91,28 +123,40 @@ def run_job_tracker(
     high_matches_count = 0
     alerts_sent_count = 0
     processed_count = 0
+    non_tech_skipped_count = 0
 
     # 7. Evaluate and Alert
     for idx, job in enumerate(unseen_jobs, start=1):
         job_id = job["id"]
         job_title = job["title"]
         job_comp = job["company"]
+
+        # Step 2 Remediation: Strict Technical Role Pre-Filter
+        if not is_technical_role(job_title):
+            non_tech_skipped_count += 1
+            logger.info(f"[{idx}/{len(unseen_jobs)}] [Non-Tech Shield] '{job_title}' @ {job_comp} -> Skipped AI (score=10)")
+            if not dry_run:
+                dedup.mark_seen(job_id)
+            processed_count += 1
+            continue
+
         logger.info(f"[{idx}/{len(unseen_jobs)}] Evaluating: '{job_title}' @ {job_comp} ({job['source']})")
 
-        # Score with Gemini 1.5 Flash
+        # Step 2 Remediation: 1.5-second pacing delay to shield Gemini Free-Tier RPM quota
+        time.sleep(1.5)
+
+        # Score with Gemini 1.5 Flash (or heuristic fallback)
         evaluation = matcher.score_job(job, profile)
-        score = evaluation.get("match_score", 0)
+        score = evaluation.get("match_score", evaluation.get("score", 0))
         logger.info(f"  -> Score: {score}/100 | Recommendation: {evaluation.get('recommendation')}")
 
         if score >= score_threshold:
             high_matches_count += 1
-            logger.info(f"  ★ High Match Detected ({score} >= {score_threshold})! Dispatching alert...")
+            logger.info(f"  [*] High Match Detected ({score} >= {score_threshold})! Dispatching alert...")
             if not dry_run:
                 sent = notifier.send_alert(job, evaluation)
                 if sent:
                     alerts_sent_count += 1
-                    import time
-                    time.sleep(2)
             else:
                 logger.info("  [Dry Run] Alert not sent to network.")
 
@@ -127,6 +171,7 @@ def run_job_tracker(
         "total_fetched": total_fetched,
         "skipped_seen": skipped_count,
         "processed": processed_count,
+        "non_tech_shielded": non_tech_skipped_count,
         "high_matches": high_matches_count,
         "alerts_sent": alerts_sent_count,
         "total_seen_now": dedup.count(),
@@ -134,12 +179,13 @@ def run_job_tracker(
 
     logger.info("=" * 60)
     logger.info("Execution Summary:")
-    logger.info(f"  • Total Postings Sourced: {metrics['total_fetched']}")
-    logger.info(f"  • Already Seen & Skipped: {metrics['skipped_seen']}")
-    logger.info(f"  • New Jobs Evaluated:     {metrics['processed']}")
-    logger.info(f"  • High Matches (>= {score_threshold}): {metrics['high_matches']}")
-    logger.info(f"  • WhatsApp Alerts Sent:   {metrics['alerts_sent']}")
-    logger.info(f"  • Total Seen Jobs Stored: {metrics['total_seen_now']}")
+    logger.info(f"  - Total Postings Sourced:   {metrics['total_fetched']}")
+    logger.info(f"  - Already Seen & Skipped:   {metrics['skipped_seen']}")
+    logger.info(f"  - New Jobs Processed:       {metrics['processed']}")
+    logger.info(f"  - Non-Tech Filter Shield:   {metrics['non_tech_shielded']}")
+    logger.info(f"  - High Matches (>= {score_threshold}):   {metrics['high_matches']}")
+    logger.info(f"  - Telegram Alerts Sent:     {metrics['alerts_sent']}")
+    logger.info(f"  - Total Seen Jobs Stored:   {metrics['total_seen_now']}")
     logger.info("=" * 60)
 
     return metrics
@@ -151,7 +197,7 @@ def main():
     parser.add_argument("--seen-file", default="seen_jobs.txt", help="Path to seen_jobs.txt")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of jobs to score")
     parser.add_argument("--dry-run", action="store_true", help="Perform dry run without updating seen jobs or sending live alerts")
-    parser.add_argument("--threshold", type=int, default=60, help="Match score threshold for alert (default: 60)")
+    parser.add_argument("--threshold", type=int, default=ALERT_THRESHOLD, help="Match score threshold for alert (default: 60)")
     args = parser.parse_args()
 
     run_job_tracker(

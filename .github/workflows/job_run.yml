@@ -34,9 +34,9 @@ jobs:
       - name: Run Job Sourcing, Matching & Alerts
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_USER: ${{ secrets.TELEGRAM_USER }}
           CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
           CALLMEBOT_API_KEY: ${{ secrets.CALLMEBOT_API_KEY }}
-          TELEGRAM_USER: ${{ secrets.TELEGRAM_USER }}
         run: |
           python main.py
 
@@ -50,5 +50,5 @@ jobs:
           else
             git commit -m "chore: update seen_jobs.txt [skip ci]"
             git pull --rebase origin main || true
-            git push || echo "::warning::Could not push seen_jobs.txt. Ensure Workflow Permissions are set to 'Read and write permissions' in GitHub Repo Settings -> Actions -> General."
+            git push origin main || echo "::warning::Could not push seen_jobs.txt. Ensure Workflow Permissions are set to 'Read and write permissions' in GitHub Repo Settings -> Actions -> General."
           fi
