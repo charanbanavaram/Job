@@ -407,3 +407,6 @@ ashby_cursor_2bc45647-93ff-497e-8db9-9b4f42d17240
 ashby_cursor_fa7a821b-ca2b-43fe-8942-07f215a060c7
 gh_razorpaysoftwareprivatelimited_4744129005
 gh_instawork_4350762006
+ashby_supabase_d6af503b-acc4-40c9-83d8-d4fe0dcc2dd5
+ashby_supabase_62dfb104-ae18-46ce-a9ef-836f024c3d6d
+ashby_cursor_1a584899-847d-4e5b-8181-fb889fe4e06e
